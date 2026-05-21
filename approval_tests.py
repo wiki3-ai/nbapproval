@@ -14,12 +14,19 @@ _APPROVAL_RECORDS = {}
 _RUN_RESULTS = {}
 _TEST_NOTEBOOK_PATH = None
 _APPROVALS_NOTEBOOK_PATH = None
+_INCLUDE_JSON_MIME = False
 
 
-def configure_approval_store(test_notebook_path=None, approvals_notebook_path=None):
-    global _TEST_NOTEBOOK_PATH, _APPROVALS_NOTEBOOK_PATH
+def configure_approval_store(
+    test_notebook_path=None,
+    approvals_notebook_path=None,
+    include_json_mime=None,
+):
+    global _TEST_NOTEBOOK_PATH, _APPROVALS_NOTEBOOK_PATH, _INCLUDE_JSON_MIME
     _TEST_NOTEBOOK_PATH = test_notebook_path
     _APPROVALS_NOTEBOOK_PATH = approvals_notebook_path
+    if include_json_mime is not None:
+        _INCLUDE_JSON_MIME = bool(include_json_mime)
 
 
 def stable_records(records, sort_by):
@@ -351,14 +358,16 @@ class ApprovalTest:
     def _repr_mimebundle_(self, include=None, exclude=None):
         payload = self._jsonld_payload()
         data = {
-            "application/ld+json": payload,
-            "application/json": payload,
             "text/html": self._html_view(),
             "text/plain": json.dumps(payload, indent=2, ensure_ascii=True),
         }
-        metadata = {
-            "application/json": {"expanded": True},
-            "application/ld+json": {
+        metadata = {}
+
+        if _INCLUDE_JSON_MIME:
+            data["application/ld+json"] = payload
+            data["application/json"] = payload
+            metadata["application/json"] = {"expanded": True}
+            metadata["application/ld+json"] = {
                 "expanded": True,
                 "approvalTest": {
                     "testId": self.test_id,
@@ -366,8 +375,8 @@ class ApprovalTest:
                     "decision": self.decision,
                     "approved": self.approved,
                 },
-            },
-        }
+            }
+
         return data, metadata
 
 
@@ -560,10 +569,17 @@ class _ApprovalTestFacade:
     def to_iso_records(self, frame):
         return to_iso_records(frame)
 
-    def configure(self, *, test_notebook_path=None, approvals_notebook_path=None):
+    def configure(
+        self,
+        *,
+        test_notebook_path=None,
+        approvals_notebook_path=None,
+        include_json_mime=None,
+    ):
         return configure_approval_store(
             test_notebook_path=test_notebook_path,
             approvals_notebook_path=approvals_notebook_path,
+            include_json_mime=include_json_mime,
         )
 
     def assert_all_approved(self, require_any=True):
