@@ -1,6 +1,7 @@
 import json
 import html
 import re
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,6 +48,41 @@ def _utc_now_iso():
 def _resolve_tests_notebook_path():
     if _TEST_NOTEBOOK_PATH:
         return Path(_TEST_NOTEBOOK_PATH).resolve()
+    detected = _detect_current_notebook_path()
+    if detected is not None:
+        return detected
+    return None
+
+
+def _detect_current_notebook_path():
+    # Best-effort runtime detection across notebook frontends.
+    raw_candidates = []
+    for key in ("VSCODE_NOTEBOOK_PATH", "VSCODE_CWD_NOTEBOOK_PATH", "JPY_SESSION_NAME"):
+        value = os.environ.get(key)
+        if value:
+            raw_candidates.append(value)
+
+    try:
+        from IPython import get_ipython
+
+        ip = get_ipython()
+        if ip is not None:
+            ns = getattr(ip, "user_ns", {})
+            for key in ("__vsc_ipynb_file__", "__notebook_file__", "NOTEBOOK_PATH"):
+                value = ns.get(key)
+                if value:
+                    raw_candidates.append(str(value))
+    except Exception:
+        pass
+
+    for candidate in raw_candidates:
+        if not str(candidate).endswith(".ipynb"):
+            continue
+        path = Path(candidate)
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        if path.exists():
+            return path.resolve()
     return None
 
 
@@ -58,7 +94,18 @@ def _resolve_approvals_notebook_path():
     if tests_nb is not None:
         return tests_nb.parent / "__approvals__" / tests_nb.name
 
-    return Path.cwd() / "__approvals__" / "approvals.ipynb"
+    approvals_dir = Path.cwd() / "__approvals__"
+    candidates = sorted(approvals_dir.glob("*.ipynb")) if approvals_dir.exists() else []
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        tested = [p for p in candidates if p.name.endswith("_tested.ipynb")]
+        if tested:
+            return tested[0]
+        non_generic = [p for p in candidates if p.name != "approvals.ipynb"]
+        if non_generic:
+            return non_generic[0]
+    return approvals_dir / "approvals.ipynb"
 
 
 def _empty_notebook():
@@ -129,18 +176,16 @@ def _normalize_record(test_id, parsed_value):
     if isinstance(parsed_value, dict) and (
         "approved" in parsed_value or "decision" in parsed_value or "test_id" in parsed_value
     ):
-        record = {
+        return {
             "test_id": parsed_value.get("test_id") or test_id,
             "approved": parsed_value.get("approved"),
             "decision": _normalize_decision(parsed_value.get("decision")),
         }
-    else:
-        record = {
-            "test_id": test_id,
-            "approved": parsed_value,
-            "decision": "Approved" if parsed_value is not None else None,
-        }
-    return record
+    return {
+        "test_id": test_id,
+        "approved": parsed_value,
+        "decision": "Approved" if parsed_value is not None else None,
+    }
 
 
 def _coerce_raw_cells_with_test_ids(nb):
@@ -219,7 +264,6 @@ class ApprovalTest:
         self.has_approved = approved is not None
         self.matches = self.has_approved and approved == actual
 
-        # An Approved decision is only valid while approved and actual still match.
         if self.decision == "Approved" and not self.matches:
             self.decision = None
 
@@ -477,3 +521,33 @@ def show_approval_test(test_id, description, actual, sort_by=None):
 def approval_from_dataframe(test_id, description, actual_df, sort_by=None):
     actual_records = to_iso_records(actual_df)
     return show_approval_test(test_id, description, actual_records, sort_by=sort_by)
+
+
+class _ApprovalTestFacade:
+    def __call__(self, *, test_id, description, actual, sort_by=None):
+        return show_approval_test(
+            test_id=test_id,
+            description=description,
+            actual=actual,
+            sort_by=sort_by,
+        )
+
+    def from_dataframe(self, *, test_id, description, actual_df, sort_by=None):
+        return approval_from_dataframe(
+            test_id=test_id,
+            description=description,
+            actual_df=actual_df,
+            sort_by=sort_by,
+        )
+
+    def to_iso_records(self, frame):
+        return to_iso_records(frame)
+
+    def configure(self, *, test_notebook_path=None, approvals_notebook_path=None):
+        return configure_approval_store(
+            test_notebook_path=test_notebook_path,
+            approvals_notebook_path=approvals_notebook_path,
+        )
+
+
+approval_test = _ApprovalTestFacade()
