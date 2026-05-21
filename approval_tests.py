@@ -49,6 +49,11 @@ def _normalize_cell_id(value):
     return (cleaned or "approval-test")[:64]
 
 
+def _derive_test_id_from_description(description):
+    token = re.sub(r"[^a-z0-9]+", "_", str(description).strip().lower()).strip("_")
+    return token or "approval_test"
+
+
 def _utc_now_iso():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -555,7 +560,61 @@ def assert_all_approved(require_any=True):
 
 
 class _ApprovalTestFacade:
-    def __call__(self, *, test_id, description, actual, sort_by=None):
+    _MISSING = object()
+
+    def _resolve_call(self, args, kwargs):
+        params = dict(kwargs)
+
+        test_id = params.pop("test_id", None)
+        id_alias = params.pop("id", None)
+        description = params.pop("description", None)
+        desc_alias = params.pop("desc", None)
+        actual = params.pop("actual", self._MISSING)
+        sort_by = params.pop("sort_by", None)
+
+        if test_id is not None and id_alias is not None and test_id != id_alias:
+            raise ValueError("test_id and id were both provided with different values")
+        if description is not None and desc_alias is not None and description != desc_alias:
+            raise ValueError("description and desc were both provided with different values")
+
+        if test_id is None:
+            test_id = id_alias
+        if description is None:
+            description = desc_alias
+
+        remaining_args = list(args)
+        if remaining_args and description is None and isinstance(remaining_args[0], str):
+            description = remaining_args.pop(0)
+
+        if remaining_args and actual is self._MISSING:
+            actual = remaining_args.pop(0)
+
+        if remaining_args:
+            raise TypeError("Too many positional arguments")
+        if params:
+            unknown = ", ".join(sorted(params.keys()))
+            raise TypeError(f"Unexpected keyword arguments: {unknown}")
+
+        if test_id is None:
+            if description is None:
+                raise TypeError("Either test_id/id or description/desc must be provided")
+            test_id = _derive_test_id_from_description(description)
+
+        if description is None:
+            description = str(test_id)
+
+        if actual is self._MISSING:
+            raise TypeError("Missing required argument: actual")
+
+        # DataFrames are converted automatically, so a separate from_dataframe call
+        # is optional for the common case.
+        if isinstance(actual, pd.DataFrame):
+            actual = to_iso_records(actual)
+
+        return test_id, description, actual, sort_by
+
+    def __call__(self, *args, **kwargs):
+        test_id, description, actual, sort_by = self._resolve_call(args, kwargs)
         return show_approval_test(
             test_id=test_id,
             description=description,
@@ -563,12 +622,13 @@ class _ApprovalTestFacade:
             sort_by=sort_by,
         )
 
-    def from_dataframe(self, *, test_id, description, actual_df, sort_by=None):
-        return approval_from_dataframe(
-            test_id=test_id,
-            description=description,
-            actual_df=actual_df,
-            sort_by=sort_by,
+    def from_dataframe(self, *args, **kwargs):
+        params = dict(kwargs)
+        if "actual_df" in params and "actual" not in params:
+            params["actual"] = params.pop("actual_df")
+        return self.__call__(
+            *args,
+            **params,
         )
 
     def to_iso_records(self, frame):

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nbapproval"
-version = "0.2.0"
+version = "0.3.0"
 description = "Notebook-friendly approval testing for Python and Jupyter"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,6 +32,11 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/wiki3-ai/nbapproval"
 Repository = "https://github.com/wiki3-ai/nbapproval"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0"
+]
 
 [tool.setuptools]
 py-modules = ["approval_tests", "nbapproval"]

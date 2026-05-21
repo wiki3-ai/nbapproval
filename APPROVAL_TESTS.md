@@ -11,13 +11,13 @@ The utility lives in:
 Typical notebook usage is a single import:
 
 ```python
-from approval_tests import approval_test
+from nbapproval import approval_test
 ```
 
 Then call:
 
-- `approval_test(...)` for dict/list payloads
-- `approval_test.from_dataframe(...)` for DataFrames
+- `approval_test(...)` for dict/list/DataFrame payloads
+- `approval_test.from_dataframe(...)` as optional convenience
 - `approval_test.to_iso_records(df)` to normalize datetime columns into stable JSON-ready records
 
 ## Runtime Initialization Logic
@@ -105,13 +105,16 @@ Rendering rules:
 1. No approved value:
    - Status: `missing-approved`
    - Show one `Value` block (actual)
-2. Approved exists and equals actual:
-   - Status: `Approved` (unless decision is `Disapproved`)
+2. Approved exists and equals actual but decision is not explicitly approved:
+   - Status: `Pending`
    - Show one `Value` block
-3. Approved exists and does not equal actual:
+3. Approved exists and equals actual and decision is explicitly approved:
+   - Status: `Approved`
+   - Show one `Value` block
+4. Approved exists and does not equal actual:
    - Status: `changed`
    - Show `Approved` and `Actual` blocks
-4. If decision is `Approved` but values no longer match:
+5. If decision is `Approved` but values no longer match:
    - effective decision is treated as `None` for display
    - prevents stale "Approved" UI state on mismatch
 
@@ -135,36 +138,42 @@ Behavior:
 Imported symbol:
 
 ```python
-from approval_tests import approval_test
+from nbapproval import approval_test
 ```
 
 Methods:
 
+- `approval_test(description, actual, sort_by=None)`
 - `approval_test(test_id=..., description=..., actual=..., sort_by=None)`
-- `approval_test.from_dataframe(test_id=..., description=..., actual_df=..., sort_by=None)`
+- `approval_test(id=..., desc=..., actual=..., sort_by=None)`
+- `approval_test.from_dataframe(...)` (optional convenience)
 - `approval_test.to_iso_records(frame)`
-- `approval_test.configure(test_notebook_path=None, approvals_notebook_path=None)`
+- `approval_test.configure(test_notebook_path=None, approvals_notebook_path=None, include_json_mime=None)`
 - `approval_test.assert_all_approved(require_any=True)`
+
+Terse API notes:
+
+- if `test_id`/`id` is omitted, id is derived from description text
+- if the first positional argument is a string, it is treated as description
+- if DataFrame is passed as `actual`, it is automatically converted using ISO-safe records
 
 ## Recommended Notebook Pattern
 
 ```python
-from approval_tests import approval_test
+from nbapproval import approval_test
 
 approval_test(
-    test_id="required_columns_present",
-    description="Dataframe includes required columns.",
-    actual={"columns": sorted(df.columns.tolist())},
+   "Dataframe includes required columns.",
+   {"columns": sorted(df.columns.tolist())},
 )
 ```
 
 For DataFrames:
 
 ```python
-approval_test.from_dataframe(
-    test_id="approval_us_2026_holidays",
-    description="Federal holidays for 2026 (including observed).",
-    actual_df=df.loc[df["Year"] == 2026, ["Date", "Holiday"]],
+approval_test(
+   "Federal holidays for 2026 (including observed).",
+   df.loc[df["Year"] == 2026, ["Date", "Holiday"]],
     sort_by=["Date", "Holiday"],
 )
 ```
@@ -206,7 +215,7 @@ Behavior with guard cell:
 3. If needed, pin explicit path once:
 
 ```python
-from approval_tests import approval_test
+from nbapproval import approval_test
 approval_test.configure(
     test_notebook_path="/absolute/path/to/your_notebook.ipynb",
     approvals_notebook_path=None,
