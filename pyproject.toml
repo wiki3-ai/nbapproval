@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nbapproval"
+version = "0.1.0"
+description = "Notebook-friendly approval testing for Python and Jupyter"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [
+  { name = "wiki3-ai" }
+]
+dependencies = [
+  "ipywidgets>=8.0",
+  "pandas>=1.5"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Testing"
+]
+
+[project.urls]
+Homepage = "https://github.com/wiki3-ai/nbapproval"
+Repository = "https://github.com/wiki3-ai/nbapproval"
+
+[tool.setuptools]
+py-modules = ["approval_tests", "nbapproval"]
