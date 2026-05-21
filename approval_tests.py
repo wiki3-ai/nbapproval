@@ -275,15 +275,20 @@ class ApprovalTest:
         if self.decision == "Approved" and not self.matches:
             self.decision = None
 
+        # A test is only fully approved when the reviewer explicitly approved
+        # and the approved value still matches the current actual value.
         if self.decision == "Disapproved":
             self.passed = False
             self.status = "Disapproved"
         elif not self.has_approved:
             self.passed = False
             self.status = "missing-approved"
-        elif self.matches:
+        elif self.decision == "Approved" and self.matches:
             self.passed = True
             self.status = "Approved"
+        elif self.matches:
+            self.passed = False
+            self.status = "Pending"
         else:
             self.passed = False
             self.status = "changed"
