@@ -213,12 +213,17 @@ class ApprovalTest:
         self.context = context or {"@vocab": "https://schema.org/"}
         self.actual = actual
         self.approved = approved
+        self.raw_decision = decision
         self.decision = decision
 
         self.has_approved = approved is not None
         self.matches = self.has_approved and approved == actual
 
-        if decision == "Disapproved":
+        # An Approved decision is only valid while approved and actual still match.
+        if self.decision == "Approved" and not self.matches:
+            self.decision = None
+
+        if self.decision == "Disapproved":
             self.passed = False
             self.status = "Disapproved"
         elif not self.has_approved:
@@ -353,7 +358,7 @@ def approval_action(action, test_id):
 
 def _make_decision_toggle(result):
     approve_btn = widgets.ToggleButton(
-        value=result.decision == "Approved",
+        value=result.decision == "Approved" and result.matches,
         description="Approve",
         button_style="success",
         icon="check",
