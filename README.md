@@ -63,6 +63,21 @@ approval_test(
 `approval_test.from_dataframe(...)` remains available, but is optional now because
 the main call handles DataFrames directly.
 
+## Runtime Status
+
+You can inspect the current approval run state directly:
+
+```python
+approval_test.status_report()
+approval_test.approvals_notebook_path
+```
+
+- `status_report()` returns totals and per-test statuses for the current session.
+- `approvals_notebook_path` returns the resolved approvals notebook path.
+
+`approval_test.assert_all_approved()` prints a summary and approvals notebook path,
+then raises if any test is not `Approved`.
+
 ## Testing
 
 Run tests with:

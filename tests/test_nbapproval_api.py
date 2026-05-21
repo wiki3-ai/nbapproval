@@ -91,3 +91,31 @@ def test_assert_all_approved_fails_when_pending(monkeypatch):
 
     with pytest.raises(AssertionError, match="Unapproved approval tests found"):
         approval_test.assert_all_approved()
+
+
+def test_html_view_does_not_repeat_approvals_path_on_each_card():
+    result = ApprovalTest("t1", "desc", actual={"x": 1}, approved=None, decision=None)
+    html = result._html_view()
+    assert "Approvals notebook:" not in html
+
+
+def test_status_report_includes_counts_and_path(monkeypatch):
+    approved = ApprovalTest("t1", "desc", actual={"x": 1}, approved={"x": 1}, decision="Approved")
+    pending = ApprovalTest("t2", "desc", actual={"x": 2}, approved={"x": 2}, decision=None)
+    monkeypatch.setattr(approval_tests, "_RUN_RESULTS", {"t1": approved, "t2": pending})
+
+    report = approval_test.status_report()
+    assert report["total"] == 2
+    assert report["approved"] == 1
+    assert report["pending"] == 1
+    assert report["all_approved"] is False
+    assert report["tests"]["t1"] == "Approved"
+    assert report["tests"]["t2"] == "Pending"
+    assert isinstance(report["approvals_notebook_path"], str)
+    assert report["approvals_notebook_path"].endswith(".ipynb")
+
+
+def test_facade_exposes_approvals_notebook_path_property():
+    path = approval_test.approvals_notebook_path
+    assert isinstance(path, str)
+    assert path.endswith(".ipynb")

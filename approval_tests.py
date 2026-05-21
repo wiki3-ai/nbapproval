@@ -121,6 +121,10 @@ def _resolve_approvals_notebook_path():
     return approvals_dir / "approvals.ipynb"
 
 
+def get_approvals_notebook_path():
+    return str(_resolve_approvals_notebook_path())
+
+
 def _empty_notebook():
     return {
         "cells": [],
@@ -358,9 +362,6 @@ class ApprovalTest:
     </div>
     <span style='color:{status_color}; font-weight:700;'>{html.escape(self.status)}</span>
   </div>
-  <div style='margin-top:8px; font-size:12px; color:#475569;'>
-    Approvals notebook: <code>{html.escape(str(_resolve_approvals_notebook_path()))}</code>
-  </div>
 {body}
 </div>
 """
@@ -546,8 +547,21 @@ def approval_from_dataframe(test_id, description, actual_df, sort_by=None):
 
 
 def assert_all_approved(require_any=True):
+    report = approval_status_report()
+
     if require_any and not _RUN_RESULTS:
-        raise AssertionError("No approval tests ran in this session.")
+        raise AssertionError(
+            "No approval tests ran in this session.\n"
+            f"Approvals notebook: {report['approvals_notebook_path']}"
+        )
+
+    print(
+        "Approval summary: "
+        f"{report['approved']}/{report['total']} Approved"
+        f" (Pending={report['pending']}, changed={report['changed']}, "
+        f"Disapproved={report['disapproved']}, missing-approved={report['missing_approved']})"
+    )
+    print(f"Approvals notebook: {report['approvals_notebook_path']}")
 
     failing = [
         f"{test_id}: {result.status}"
@@ -556,7 +570,46 @@ def assert_all_approved(require_any=True):
     ]
     if failing:
         details = "\n".join(failing)
-        raise AssertionError("Unapproved approval tests found:\n" + details)
+        raise AssertionError(
+            "Unapproved approval tests found:\n"
+            + details
+            + "\n"
+            + f"Approvals notebook: {report['approvals_notebook_path']}"
+        )
+
+
+def approval_status_report():
+    path = get_approvals_notebook_path()
+    counts = {
+        "Approved": 0,
+        "Pending": 0,
+        "changed": 0,
+        "Disapproved": 0,
+        "missing-approved": 0,
+    }
+
+    tests = {}
+    for test_id, result in sorted(_RUN_RESULTS.items()):
+        status = result.status
+        if status not in counts:
+            counts[status] = 0
+        counts[status] += 1
+        tests[test_id] = status
+
+    total = sum(counts.values())
+    failing = [test_id for test_id, status in tests.items() if status != "Approved"]
+
+    return {
+        "approvals_notebook_path": path,
+        "total": total,
+        "approved": counts.get("Approved", 0),
+        "pending": counts.get("Pending", 0),
+        "changed": counts.get("changed", 0),
+        "disapproved": counts.get("Disapproved", 0),
+        "missing_approved": counts.get("missing-approved", 0),
+        "all_approved": total > 0 and not failing,
+        "tests": tests,
+    }
 
 
 class _ApprovalTestFacade:
@@ -649,6 +702,13 @@ class _ApprovalTestFacade:
 
     def assert_all_approved(self, require_any=True):
         return assert_all_approved(require_any=require_any)
+
+    def status_report(self):
+        return approval_status_report()
+
+    @property
+    def approvals_notebook_path(self):
+        return get_approvals_notebook_path()
 
 
 approval_test = _ApprovalTestFacade()

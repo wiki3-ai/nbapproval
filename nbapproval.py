@@ -4,8 +4,10 @@ from approval_tests import approval_test
 from approval_tests import ApprovalTest
 from approval_tests import approval_action
 from approval_tests import approval_from_dataframe
+from approval_tests import approval_status_report
 from approval_tests import assert_all_approved
 from approval_tests import configure_approval_store
+from approval_tests import get_approvals_notebook_path
 from approval_tests import load_approval_records
 from approval_tests import run_approval_test
 from approval_tests import save_approval_record
@@ -18,8 +20,10 @@ __all__ = [
     "ApprovalTest",
     "approval_action",
     "approval_from_dataframe",
+    "approval_status_report",
     "assert_all_approved",
     "configure_approval_store",
+    "get_approvals_notebook_path",
     "load_approval_records",
     "run_approval_test",
     "save_approval_record",

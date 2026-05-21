@@ -29,7 +29,7 @@ When you call `approval_test(...)`:
 1. `run_approval_test(...)` is called.
 2. It loads approval records from the approvals notebook.
 3. It stores current actual value for the current `test_id` in in-memory state (`_APPROVAL_LAST_ACTUAL`).
-4. It computes result state (`Approved`, `Disapproved`, `changed`, or `missing-approved`).
+4. It computes result state (`Approved`, `Pending`, `Disapproved`, `changed`, or `missing-approved`).
 5. It renders:
    - rich value/status panel (`ApprovalTest` rich repr), and
    - button controls (`Approve`, `Disapprove`, `Reset`).
@@ -118,6 +118,11 @@ Rendering rules:
    - effective decision is treated as `None` for display
    - prevents stale "Approved" UI state on mismatch
 
+Display note:
+
+- per-test cards no longer render the approvals notebook path line
+- path visibility is available from reporting APIs and assert output
+
 ## Buttons Behavior
 
 Buttons are mutually exclusive toggles:
@@ -149,6 +154,8 @@ Methods:
 - `approval_test.from_dataframe(...)` (optional convenience)
 - `approval_test.to_iso_records(frame)`
 - `approval_test.configure(test_notebook_path=None, approvals_notebook_path=None, include_json_mime=None)`
+- `approval_test.status_report()`
+- `approval_test.approvals_notebook_path`
 - `approval_test.assert_all_approved(require_any=True)`
 
 Terse API notes:
@@ -184,7 +191,20 @@ For CI/non-interactive runs (Papermill), add a final guard cell:
 approval_test.assert_all_approved()
 ```
 
-This raises an `AssertionError` if any approval test status is not `Approved`.
+This prints a summary and approvals notebook path, and raises an `AssertionError`
+if any approval test status is not `Approved`.
+
+To inspect status without raising:
+
+```python
+approval_test.status_report()
+```
+
+To retrieve the resolved approvals notebook path directly:
+
+```python
+approval_test.approvals_notebook_path
+```
 
 ## Papermill Usage
 
@@ -210,7 +230,7 @@ Behavior with guard cell:
 
 ### Approved values not found
 
-1. Check rendered "Approvals notebook" path in output.
+1. Check `approval_test.approvals_notebook_path` in a cell.
 2. Confirm that file exists.
 3. If needed, pin explicit path once:
 
