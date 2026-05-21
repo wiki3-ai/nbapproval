@@ -2,6 +2,7 @@ import json
 import html
 import re
 import os
+import shlex
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -612,6 +613,121 @@ def approval_status_report():
     }
 
 
+def _parse_approve_magic_header(header):
+    tokens = shlex.split(header) if header else []
+    test_id = None
+    description_parts = []
+    sort_by_expr = None
+
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token in {"--id", "-i"}:
+            if i + 1 >= len(tokens):
+                raise ValueError("--id requires a value")
+            test_id = tokens[i + 1]
+            i += 2
+            continue
+        if token in {"--desc", "--description", "-d"}:
+            if i + 1 >= len(tokens):
+                raise ValueError("--desc/--description requires a value")
+            description_parts.append(tokens[i + 1])
+            i += 2
+            continue
+        if token in {"--sort-by", "-s"}:
+            if i + 1 >= len(tokens):
+                raise ValueError("--sort-by requires a Python expression value")
+            sort_by_expr = tokens[i + 1]
+            i += 2
+            continue
+
+        description_parts.append(token)
+        i += 1
+
+    description = " ".join(description_parts).strip() or None
+    return test_id, description, sort_by_expr
+
+
+def _run_approve_magic(expression, *, description=None, test_id=None, sort_by_expr=None, user_ns=None):
+    namespace = user_ns or {}
+    actual = eval(expression, namespace)
+    sort_by = eval(sort_by_expr, namespace) if sort_by_expr else None
+
+    effective_description = description or expression.strip()
+    return approval_test(
+        id=test_id,
+        description=effective_description,
+        actual=actual,
+        sort_by=sort_by,
+    )
+
+
+def _handle_approve_magic(line, cell=None, *, user_ns=None):
+    raw = (line or "").strip()
+    expression = (cell or "").strip() if cell is not None else None
+
+    if cell is None:
+        # Line form:
+        # %approve <python-expression>
+        # %approve [--id value] [--desc "text"] [--sort-by "['col']"] :: <python-expression>
+        if not raw:
+            raise ValueError("%approve requires an expression")
+
+        if "::" in raw:
+            header, expression = raw.split("::", 1)
+            test_id, description, sort_by_expr = _parse_approve_magic_header(header.strip())
+            return _run_approve_magic(
+                expression.strip(),
+                description=description,
+                test_id=test_id,
+                sort_by_expr=sort_by_expr,
+                user_ns=user_ns,
+            )
+
+        return _run_approve_magic(raw, user_ns=user_ns)
+
+    # Cell form:
+    # %%approve [--id value] [--desc "text"] [--sort-by "['col']"] [freeform description]
+    # <python-expression>
+    test_id, description, sort_by_expr = _parse_approve_magic_header(raw)
+    if not expression:
+        raise ValueError("%%approve requires a Python expression in the cell body")
+    return _run_approve_magic(
+        expression,
+        description=description,
+        test_id=test_id,
+        sort_by_expr=sort_by_expr,
+        user_ns=user_ns,
+    )
+
+
+def _register_ipython_magics(ip):
+    from IPython.core.magic import Magics, line_cell_magic, magics_class
+
+    @magics_class
+    class ApprovalMagics(Magics):
+        @line_cell_magic
+        def approve(self, line, cell=None):
+            return _handle_approve_magic(line, cell=cell, user_ns=self.shell.user_ns)
+
+    ip.register_magics(ApprovalMagics)
+
+
+def load_ipython_extension(ipython):
+    _register_ipython_magics(ipython)
+
+
+def _try_auto_register_magics():
+    try:
+        from IPython import get_ipython
+
+        ip = get_ipython()
+        if ip is not None:
+            _register_ipython_magics(ip)
+    except Exception:
+        pass
+
+
 class _ApprovalTestFacade:
     _MISSING = object()
 
@@ -712,3 +828,5 @@ class _ApprovalTestFacade:
 
 
 approval_test = _ApprovalTestFacade()
+
+_try_auto_register_magics()

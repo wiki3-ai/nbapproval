@@ -119,3 +119,88 @@ def test_facade_exposes_approvals_notebook_path_property():
     path = approval_test.approvals_notebook_path
     assert isinstance(path, str)
     assert path.endswith(".ipynb")
+
+
+def test_parse_approve_magic_header_supports_options_and_description():
+    test_id, description, sort_by_expr = approval_tests._parse_approve_magic_header(
+        '--id my_test --sort-by "[\'Date\', \'Expected\']" free form description'
+    )
+
+    assert test_id == "my_test"
+    assert description == "free form description"
+    assert sort_by_expr == "['Date', 'Expected']"
+
+
+def test_run_approve_magic_evaluates_expression_and_calls_facade(monkeypatch):
+    captured = {}
+
+    class FakeApprovalTest:
+        def __call__(self, *args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return "ok"
+
+    monkeypatch.setattr(approval_tests, "approval_test", FakeApprovalTest())
+
+    result = approval_tests._run_approve_magic(
+        "actual_df",
+        description="Magic description",
+        test_id="magic_test",
+        sort_by_expr="['Date']",
+        user_ns={"actual_df": [{"Date": "2024-01-01"}]},
+    )
+
+    assert result == "ok"
+    assert captured["kwargs"]["id"] == "magic_test"
+    assert captured["kwargs"]["description"] == "Magic description"
+    assert captured["kwargs"]["actual"] == [{"Date": "2024-01-01"}]
+    assert captured["kwargs"]["sort_by"] == ["Date"]
+
+
+def test_handle_approve_magic_line_expression(monkeypatch):
+    captured = {}
+
+    def fake_run(expression, *, description=None, test_id=None, sort_by_expr=None, user_ns=None):
+        captured["expression"] = expression
+        captured["description"] = description
+        captured["test_id"] = test_id
+        captured["sort_by_expr"] = sort_by_expr
+        captured["user_ns"] = user_ns
+        return "ok"
+
+    monkeypatch.setattr(approval_tests, "_run_approve_magic", fake_run)
+    result = approval_tests._handle_approve_magic(
+        'bool(df["Date"].is_monotonic_increasing)',
+        user_ns={"df": "stub"},
+    )
+
+    assert result == "ok"
+    assert captured["expression"] == 'bool(df["Date"].is_monotonic_increasing)'
+    assert captured["description"] is None
+    assert captured["test_id"] is None
+    assert captured["sort_by_expr"] is None
+
+
+def test_handle_approve_magic_cell_expression(monkeypatch):
+    captured = {}
+
+    def fake_run(expression, *, description=None, test_id=None, sort_by_expr=None, user_ns=None):
+        captured["expression"] = expression
+        captured["description"] = description
+        captured["test_id"] = test_id
+        captured["sort_by_expr"] = sort_by_expr
+        captured["user_ns"] = user_ns
+        return "ok"
+
+    monkeypatch.setattr(approval_tests, "_run_approve_magic", fake_run)
+    result = approval_tests._handle_approve_magic(
+        '--id holidays_2026 --sort-by "[\'Date\']" Federal holidays for 2026',
+        cell='df.loc[df["Year"] == 2026, ["Date", "Holiday"]]',
+        user_ns={"df": "stub"},
+    )
+
+    assert result == "ok"
+    assert captured["expression"] == 'df.loc[df["Year"] == 2026, ["Date", "Holiday"]]'
+    assert captured["description"] == "Federal holidays for 2026"
+    assert captured["test_id"] == "holidays_2026"
+    assert captured["sort_by_expr"] == "['Date']"

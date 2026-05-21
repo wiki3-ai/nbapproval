@@ -9,6 +9,7 @@ from approval_tests import assert_all_approved
 from approval_tests import configure_approval_store
 from approval_tests import get_approvals_notebook_path
 from approval_tests import load_approval_records
+from approval_tests import load_ipython_extension
 from approval_tests import run_approval_test
 from approval_tests import save_approval_record
 from approval_tests import show_approval_test
@@ -25,6 +26,7 @@ __all__ = [
     "configure_approval_store",
     "get_approvals_notebook_path",
     "load_approval_records",
+    "load_ipython_extension",
     "run_approval_test",
     "save_approval_record",
     "show_approval_test",
