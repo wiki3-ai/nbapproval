@@ -158,11 +158,63 @@ Methods:
 - `approval_test.approvals_notebook_path`
 - `approval_test.assert_all_approved(require_any=True)`
 
+Notebook magics:
+
+- `%approve`
+- `%%approve`
+
 Terse API notes:
 
 - if `test_id`/`id` is omitted, id is derived from description text
 - if the first positional argument is a string, it is treated as description
 - if DataFrame is passed as `actual`, it is automatically converted using ISO-safe records
+
+## Magic Syntax
+
+Line magic:
+
+```python
+%approve <python-expression>
+%approve [--id value] [--desc "text"] [--sort-by "['col']"] :: <python-expression>
+```
+
+Cell magic:
+
+```python
+%%approve [--id value] [--desc "text"] [--sort-by "['col']"] [freeform description]
+<python code block>
+```
+
+Behavior:
+
+- `%approve` without options treats the entire line as a Python expression.
+- `%approve` with options requires `::` to separate options/header from expression.
+- `%%approve` executes the whole cell body and uses the final expression value as `actual`.
+- In `%%approve`, setup statements are allowed before the final expression.
+
+Examples:
+
+```python
+%approve bool(df["Date"].is_monotonic_increasing)
+
+%approve --desc "Dataframe includes required columns" :: sorted(df.columns.tolist())
+
+%%approve Known holiday checkpoints match expected names for specific dates --sort-by "['Date', 'Holiday']"
+known = pd.DataFrame([
+   {"Date": pd.Timestamp("2024-01-01"), "Holiday": "New Year's Day"},
+   {"Date": pd.Timestamp("2024-11-28"), "Holiday": "Thanksgiving Day"},
+   {"Date": pd.Timestamp("2026-05-25"), "Holiday": "Memorial Day"},
+])
+
+actual = (
+   df[df["Date"].isin(known["Date"])]
+   .loc[:, ["Date", "Holiday"]]
+   .sort_values("Date")
+   .reset_index(drop=True)
+)
+
+approval_test.to_iso_records(actual)
+```
 
 ## Recommended Notebook Pattern
 

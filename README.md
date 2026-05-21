@@ -78,6 +78,33 @@ approval_test.approvals_notebook_path
 `approval_test.assert_all_approved()` prints a summary and approvals notebook path,
 then raises if any test is not `Approved`.
 
+## Notebook Magics
+
+The package registers two IPython magics for concise notebook tests:
+
+- `%approve` for line-style checks
+- `%%approve` for cell-style checks
+
+Examples:
+
+```python
+# line magic with expression only
+%approve bool(df["Date"].is_monotonic_increasing)
+
+# line magic with options + expression (use :: separator)
+%approve --id dates_are_sorted --desc "Dates are sorted" :: bool(df["Date"].is_monotonic_increasing)
+
+# cell magic with a code block; last expression becomes approved value
+%%approve --desc "Federal holidays for 2026" --sort-by "['Date', 'Holiday']"
+df.loc[df["Year"] == 2026, ["Date", "Holiday"]]
+```
+
+Notes:
+
+- In `%approve`, when options are present, put `::` before the expression.
+- In `%%approve`, full code blocks are supported; setup statements are allowed,
+  and the last expression is used as `actual`.
+
 ## Testing
 
 Run tests with:
