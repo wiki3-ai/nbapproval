@@ -11,6 +11,7 @@ from IPython.display import display
 
 _APPROVAL_LAST_ACTUAL = {}
 _APPROVAL_RECORDS = {}
+_RUN_RESULTS = {}
 _TEST_NOTEBOOK_PATH = None
 _APPROVALS_NOTEBOOK_PATH = None
 
@@ -497,18 +498,20 @@ def _make_decision_toggle(result):
 
 
 def run_approval_test(test_id, description, actual, sort_by=None):
-    global _APPROVAL_RECORDS
+    global _APPROVAL_RECORDS, _RUN_RESULTS
     _APPROVAL_RECORDS = load_approval_records()
     actual_sorted = stable_records(actual, sort_by) if isinstance(actual, list) else actual
     _APPROVAL_LAST_ACTUAL[test_id] = actual_sorted
     record = _APPROVAL_RECORDS.get(test_id, {})
-    return ApprovalTest(
+    result = ApprovalTest(
         test_id=test_id,
         description=description,
         actual=actual_sorted,
         approved=record.get("approved"),
         decision=record.get("decision"),
     )
+    _RUN_RESULTS[test_id] = result
+    return result
 
 
 def show_approval_test(test_id, description, actual, sort_by=None):
@@ -521,6 +524,20 @@ def show_approval_test(test_id, description, actual, sort_by=None):
 def approval_from_dataframe(test_id, description, actual_df, sort_by=None):
     actual_records = to_iso_records(actual_df)
     return show_approval_test(test_id, description, actual_records, sort_by=sort_by)
+
+
+def assert_all_approved(require_any=True):
+    if require_any and not _RUN_RESULTS:
+        raise AssertionError("No approval tests ran in this session.")
+
+    failing = [
+        f"{test_id}: {result.status}"
+        for test_id, result in sorted(_RUN_RESULTS.items())
+        if result.status != "Approved"
+    ]
+    if failing:
+        details = "\n".join(failing)
+        raise AssertionError("Unapproved approval tests found:\n" + details)
 
 
 class _ApprovalTestFacade:
@@ -548,6 +565,9 @@ class _ApprovalTestFacade:
             test_notebook_path=test_notebook_path,
             approvals_notebook_path=approvals_notebook_path,
         )
+
+    def assert_all_approved(self, require_any=True):
+        return assert_all_approved(require_any=require_any)
 
 
 approval_test = _ApprovalTestFacade()

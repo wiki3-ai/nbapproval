@@ -53,6 +53,12 @@ Path resolution has this order:
    - if multiple files exist, prefer `*_tested.ipynb`, then non-generic file names
    - else default to `./__approvals__/approvals.ipynb`
 
+Important note:
+
+- The intended canonical rule is always:
+   - `<dir of current notebook>/__approvals__/<name of current notebook>`
+- Fallback selection is only used when runtime path detection cannot determine the current notebook path.
+
 ## Approved Values Notebook Format
 
 Approvals are stored in a Jupyter notebook file as raw cells.
@@ -78,6 +84,13 @@ Example record body:
   "decision": "Approved"
 }
 ```
+
+`test_id` is the identity key. Keep it stable and unique for each logical approval test.
+
+Recommended pattern for larger notebooks:
+
+- use namespace-like IDs such as `holiday.required_columns` or `holiday.2026.independence_observed`
+- avoid renaming `test_id` unless you intentionally want a new approval history
 
 ## Decision and Display State Rules
 
@@ -131,6 +144,7 @@ Methods:
 - `approval_test.from_dataframe(test_id=..., description=..., actual_df=..., sort_by=None)`
 - `approval_test.to_iso_records(frame)`
 - `approval_test.configure(test_notebook_path=None, approvals_notebook_path=None)`
+- `approval_test.assert_all_approved(require_any=True)`
 
 ## Recommended Notebook Pattern
 
@@ -155,6 +169,34 @@ approval_test.from_dataframe(
 )
 ```
 
+For CI/non-interactive runs (Papermill), add a final guard cell:
+
+```python
+approval_test.assert_all_approved()
+```
+
+This raises an `AssertionError` if any approval test status is not `Approved`.
+
+## Papermill Usage
+
+Execute the notebook:
+
+```bash
+papermill /workspaces/coding/holiday_calculator_tested.ipynb /workspaces/coding/holiday_calculator_tested.papermill.ipynb
+```
+
+Output file naming note:
+
+- the output suffix is not required to be `.papermill`
+- any output notebook filename works
+- when current notebook path is detectable, approvals follow the canonical per-notebook rule
+- when not detectable, fallback selection may be used; in CI, set `approval_test.configure(...)` for deterministic behavior
+
+Behavior with guard cell:
+
+- all approved: papermill exits `0`
+- any `missing-approved`, `changed`, or `Disapproved`: papermill fails with assertion error
+
 ## Troubleshooting
 
 ### Approved values not found
@@ -174,6 +216,10 @@ approval_test.configure(
 ### Wrong approvals notebook selected after renaming/moving notebooks
 
 Use explicit `approval_test.configure(...)` in one setup cell so the path is deterministic.
+
+### Multiple notebooks sharing one approvals file
+
+This is supported only if all `test_id` values are unique across those notebooks.
 
 ### Stale behavior after utility edits
 
