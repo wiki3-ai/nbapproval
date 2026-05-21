@@ -157,6 +157,27 @@ def test_run_approve_magic_evaluates_expression_and_calls_facade(monkeypatch):
     assert captured["kwargs"]["sort_by"] == ["Date"]
 
 
+def test_run_approve_magic_executes_block_and_uses_last_expression(monkeypatch):
+    captured = {}
+
+    class FakeApprovalTest:
+        def __call__(self, *args, **kwargs):
+            captured["kwargs"] = kwargs
+            return "ok"
+
+    monkeypatch.setattr(approval_tests, "approval_test", FakeApprovalTest())
+
+    result = approval_tests._run_approve_magic(
+        "x = 1\ny = x + 2\ny",
+        description="block case",
+        user_ns={},
+    )
+
+    assert result == "ok"
+    assert captured["kwargs"]["actual"] == 3
+    assert captured["kwargs"]["description"] == "block case"
+
+
 def test_handle_approve_magic_line_expression(monkeypatch):
     captured = {}
 

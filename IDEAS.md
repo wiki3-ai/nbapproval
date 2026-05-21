@@ -13,8 +13,14 @@ Lots of options here.
 2) A2A
 3) Any number of web3 systems.
 
+# Assertion tests
+Support inclusion of expected values.
+
+# Conditional tests
+Support tests that are conditional expressions (basically assert true).
+
 # Expression as description
-Approval tests that only require the expression to be evaluated.
+Approval tests that only require the expression to be evaluated.  
 The name can be derived from the expression.  
 This ties into the CID-based provenance.
 

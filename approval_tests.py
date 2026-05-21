@@ -3,6 +3,7 @@ import html
 import re
 import os
 import shlex
+import ast
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -650,7 +651,7 @@ def _parse_approve_magic_header(header):
 
 def _run_approve_magic(expression, *, description=None, test_id=None, sort_by_expr=None, user_ns=None):
     namespace = user_ns or {}
-    actual = eval(expression, namespace)
+    actual = _evaluate_magic_source(expression, namespace)
     sort_by = eval(sort_by_expr, namespace) if sort_by_expr else None
 
     effective_description = description or expression.strip()
@@ -660,6 +661,28 @@ def _run_approve_magic(expression, *, description=None, test_id=None, sort_by_ex
         actual=actual,
         sort_by=sort_by,
     )
+
+
+def _evaluate_magic_source(source, namespace):
+    source = (source or "").strip()
+    if not source:
+        raise ValueError("approve magic requires Python code")
+
+    module = ast.parse(source, mode="exec")
+    if not module.body:
+        raise ValueError("approve magic requires Python code")
+
+    # Execute all statements and treat the final expression (if present)
+    # as the value to be approved.
+    if isinstance(module.body[-1], ast.Expr):
+        prefix = ast.Module(body=module.body[:-1], type_ignores=[])
+        if prefix.body:
+            exec(compile(prefix, "<approve-magic>", "exec"), namespace)
+        expr = ast.Expression(module.body[-1].value)
+        return eval(compile(expr, "<approve-magic>", "eval"), namespace)
+
+    exec(compile(module, "<approve-magic>", "exec"), namespace)
+    return namespace.get("_", None)
 
 
 def _handle_approve_magic(line, cell=None, *, user_ns=None):
