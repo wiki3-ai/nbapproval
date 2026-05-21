@@ -366,6 +366,12 @@ def _make_decision_toggle(result):
         icon="times",
         layout=widgets.Layout(width="190px", height="42px"),
     )
+    reset_btn = widgets.Button(
+        description="Reset",
+        button_style="warning",
+        icon="undo",
+        layout=widgets.Layout(width="120px", height="42px"),
+    )
     status = widgets.HTML(
         value=(
             "<small>State: <b>Approved</b></small>"
@@ -378,6 +384,18 @@ def _make_decision_toggle(result):
 
     _busy = {"flag": False}
 
+    def _style_buttons():
+        approve_btn.description = "Approved" if approve_btn.value else "Approve"
+        disapprove_btn.description = "Disapproved" if disapprove_btn.value else "Disapprove"
+
+        approve_btn.style.button_color = "#0f766e" if approve_btn.value else ""
+        disapprove_btn.style.button_color = "#991b1b" if disapprove_btn.value else ""
+
+        approve_btn.layout.border = "3px solid #0d9488" if approve_btn.value else "2px solid #9ca3af"
+        disapprove_btn.layout.border = "3px solid #dc2626" if disapprove_btn.value else "2px solid #9ca3af"
+
+        reset_btn.disabled = not (approve_btn.value or disapprove_btn.value)
+
     def _set_status():
         if approve_btn.value:
             status.value = "<small>State: <b>Approved</b> (saved)</small>"
@@ -385,6 +403,7 @@ def _make_decision_toggle(result):
             status.value = "<small>State: <b>Disapproved</b> (saved)</small>"
         else:
             status.value = "<small>State: <b>None</b> (saved)</small>"
+        _style_buttons()
 
     def _apply(which):
         if _busy["flag"]:
@@ -410,7 +429,22 @@ def _make_decision_toggle(result):
     approve_btn.observe(lambda c: _apply("approve") if c["name"] == "value" else None, names="value")
     disapprove_btn.observe(lambda c: _apply("disapprove") if c["name"] == "value" else None, names="value")
 
-    return widgets.VBox([widgets.HBox([approve_btn, disapprove_btn]), status])
+    def _reset(_):
+        if _busy["flag"]:
+            return
+        _busy["flag"] = True
+        try:
+            approve_btn.value = False
+            disapprove_btn.value = False
+            approval_action("clear", result.test_id)
+            _set_status()
+        finally:
+            _busy["flag"] = False
+
+    reset_btn.on_click(_reset)
+    _style_buttons()
+
+    return widgets.VBox([widgets.HBox([approve_btn, disapprove_btn, reset_btn]), status])
 
 
 def run_approval_test(test_id, description, actual, sort_by=None):
